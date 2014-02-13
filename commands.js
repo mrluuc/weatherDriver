@@ -1,18 +1,51 @@
-module.exports = [
-    {
-        name: 'Weather Current Temperature',
+var hourlyForecast = function(opts)
+{
+  var forecasts = [];
+  for (var i = 0; i < opts.forecastHours; i++) {
+    (function(i) {
+      forecasts.push({
+        name: 'Weather Forecast Temperature '+(i+1)+'h',
         deviceId: 9,
         data: [function(weatherDataToParse, useFahrenheit) {
-			if (useFahrenheit) {
-				return weatherDataToParse.current_observation.temp_f;
-			}
-			else {
-				return weatherDataToParse.current_observation.temp_c;
-			}
+          if (useFahrenheit) {
+            return weatherDataToParse.hourly_forecast[i].temp.english;
+          }
+          else {
+            return weatherDataToParse.hourly_forecast[i].temp.metric;
+          }
         }],
-		canSet: false,
-    },
-];
+        canSet: false
+      });
+      forecasts.push({
+        name: 'Weather Forecast Condition '+(i+1)+'h',
+        deviceId: 244,
+        data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.hourly_forecast[i].condition;
+        }],
+        canSet: false
+      });
+    })(i);
+  }
+  return forecasts;
+}
+
+module.exports = function(opts) {
+  return [
+    {
+      name: 'Weather Current Temperature',
+      deviceId: 9,
+      data: [function(weatherDataToParse, useFahrenheit) {
+  			if (useFahrenheit) {
+  				return weatherDataToParse.current_observation.temp_f;
+  			}
+  			else {
+  				return weatherDataToParse.current_observation.temp_c;
+  			}
+      }],
+  		canSet: false
+    }
+  ].concat(hourlyForecast(opts));
+}
 
 /*
 	name: string - the name of the device

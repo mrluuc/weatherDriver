@@ -8,7 +8,7 @@ util.inherits(Device,stream);
 
 // not so elegant way to store all of the devices created by the driver, plus a few variables...
 var deviceList = [];
-var weathDataFeatures = ["conditions"]  // a single api request can combine many forms of data so as to save you # of requests per day, etc. - can be: alerts, almanac, astronomy, conditions, currenthurricane, forecast, forecast10day, geolookup, history, hourly, hourly10day, planner, rawtide, satellite, tide, webcams, yesterday
+var weathDataFeatures = ["conditions", "hourly"]  // a single api request can combine many forms of data so as to save you # of requests per day, etc. - can be: alerts, almanac, astronomy, conditions, currenthurricane, forecast, forecast10day, geolookup, history, hourly, hourly10day, planner, rawtide, satellite, tide, webcams, yesterday
 var apiKey = "xxx"; // api key obtained from http://www.wunderground.com/weather/api/ (documentation: http://www.wunderground.com/weather/api/d/docs)
 var zipCode = "10007"; // zip code of location
 var useFahrenheit = true; // set false to use Celsius
@@ -79,14 +79,13 @@ function updateDevices(app, opts) {	// runs every "updateInterval" seconds
 					} catch(e) {
 						parsedResult = undefined;
 					}
-					app.log.debug(dev.name + ' - parse data: ' + parsedResult);
 				});
 				if (parsedResult !== undefined) {
-					app.log.debug(dev.name + ' - emmitting data: ' + parsedResult);
+					app.log.debug("%s: %s", dev.name, parsedResult);
 					dev.emit('data', parsedResult);
 				}
 				else {
-					app.log.debug(dev.name + ' - did not emmit data!');
+					app.log.warn("%s did not emit data!", dev.name);
 				};
 			});
 
