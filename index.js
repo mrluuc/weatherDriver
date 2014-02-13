@@ -6,38 +6,53 @@ var rest = require('restler');
 util.inherits(Driver,stream);
 util.inherits(Device,stream);
 
-// not so elegant way to store all of the devices created by the driver, plus a few variables...
-var deviceList = [];
-var weathDataFeatures = ["conditions", "hourly"]  // a single api request can combine many forms of data so as to save you # of requests per day, etc. - can be: alerts, almanac, astronomy, conditions, currenthurricane, forecast, forecast10day, geolookup, history, hourly, hourly10day, planner, rawtide, satellite, tide, webcams, yesterday
-var apiKey = "xxx"; // api key obtained from http://www.wunderground.com/weather/api/ (documentation: http://www.wunderground.com/weather/api/d/docs)
-var zipCode = "10007"; // zip code of location
-var useFahrenheit = true; // set false to use Celsius
-var pauseAfterSetToUpdate = 5000; // in milliseconds
-var updateInterval = 300000; // in milliseconds
-
 function Driver(opts,app) {
 	this._app = app;
 	this.opts = opts;
-	if (opts.apiKey) apiKey = opts.apiKey; // ugly way to track these, but it should work for now...
-	if (opts.zipCode) zipCode = opts.zipCode;
-	if (opts.useFahrenheit) useFahrenheit = opts.useFahrenheit;	
-	if (opts.pauseAfterSetToUpdate) pauseAfterSetToUpdate = opts.pauseAfterSetToUpdate;	
-	if (opts.updateInterval) updateInterval = opts.updateInterval;		
+	opts.zipCode = opts.zipCode || "10007";
+	opts.useFahrenheit = opts.useFahrenheit || false;
+	if (opts.useFahrenheit === "true")
+		opts.useFahrenheit = true;
+	if (opts.useFahrenheit === "false")
+		opts.useFahrenheit = false;
+	opts.forecastHours = opts.forecastHours == null ? 1 : opts.forecastHours;
+	opts.pauseAfterSetToUpdate = opts.pauseAfterSetToUpdate || 5000; // in milliseconds
+	opts.updateInterval = opts.updateInterval | 300000; // in milliseconds
+	this.save();
+	this.devices = {};
+	this.timerId = null;
 	app.once('client::up',function(){
-		commands.forEach( this.createCommandDevice.bind(this) );
-		updateDevices(app, opts);
-		process.nextTick(function() {	// Once all devices are set up, establish a single update process that updates every "updateInterval" seconds
-			setInterval(function() {
-				updateDevices(app, opts);
-			}, updateInterval);
-		});
+		if (opts.apiKey)
+			this.createDevices();
 	}.bind(this));
 };
 
+Driver.prototype.createDevices = function() {
+	var self = this;
+	this._app.log.debug('weatherDriver Creating Devices');
+	commands(this.opts).forEach( this.createCommandDevice.bind(this) );
+	self.updateDevices(this._app, this.opts);
+
+	// ensure there's only one timer running
+	if (self.timerId) {
+		clearInterval(self.timerId);
+		self.timerId = null;
+	}
+
+	process.nextTick(function() {	// Once all devices are set up, establish a single update process that updates every "updateInterval" seconds
+		self.timerId = setInterval(function() {
+			self.updateDevices(self._app, self.opts);
+		}, self.opts.updateInterval);
+	});
+};
+
 Driver.prototype.createCommandDevice = function(cmd) {
-	var d = new Device(this._app, cmd);
-	this.emit('register', d);
-	deviceList.push(d);
+	// prevent creation of duplicated devices
+	if (!this.devices[cmd.name]) {
+		var d = new Device(this._app, cmd);
+		this.devices[cmd.name] = d;
+		this.emit('register', d);
+	}
 };
 
 function Device(app, config) {
@@ -55,27 +70,35 @@ function Device(app, config) {
 	// this.read();
 };
 
-function updateDevices(app, opts) {	// runs every "updateInterval" seconds
+Driver.prototype.updateDevices = function() {	// runs every "updateInterval" seconds
+	var self = this;
+	var app = this._app;
+	var opts = this.opts;
+
 	app.log.debug("Updating weatherDriver Devices...");
 
-	var url = "http://api.wunderground.com/api/" + apiKey + "/" + weathDataFeatures.join("/") + "/q/" + zipCode + ".json";  // example: http://api.wunderground.com/api/6ed6c7fe07d64fa7/conditions/q/30736.json - See api for documentation - http://api.wunderground.com/api/apiKey/features (can be combined more than one)/settings (leave out to accept defaults)/q/query (the location - can be a zip code, city, etc).format (json or xml)
+	// a single api request can combine many forms of data so as to save you # of requests per day, etc.
+	// can be: alerts, almanac, astronomy, conditions, currenthurricane, forecast, forecast10day, geolookup, history, hourly, hourly10day, planner, rawtide, satellite, tide, webcams, yesterday
+	var weathDataFeatures = ["conditions", "hourly"]
+
+	// example: http://api.wunderground.com/api/6ed6c7fe07d64fa7/conditions/q/30736.json - See api for documentation - http://api.wunderground.com/api/apiKey/features (can be combined more than one)/settings (leave out to accept defaults)/q/query (the location - can be a zip code, city, etc).format (json or xml)
+	var url = "http://api.wunderground.com/api/" + opts.apiKey + "/" + weathDataFeatures.join("/") + "/q/" + opts.zipCode + ".json";
 
 	rest.get(url).on('complete', function(result) {
-		app.log.debug("Result of weatherDriver command: %j", result);
-	  if (result instanceof Error) {
+		// app.log.debug("Result of weatherDriver command: %j", result);
+		if (result instanceof Error) {
 			app.log.warn('weatherDriver : ' + this.name + ' error! - ' + result.message);
-	    this.retry(60000); // try again after 60 sec
-	  }
-	  else {
-			var useFht = false;
-			if (useFahrenheit==true || useFahrenheit=="true") { useFht = true }; // account for "false" stored as string
-
-			deviceList.forEach(function(dev){
+			this.retry(60000); // try again after 60 sec
+		}
+		else {
+			var keys = Object.keys(self.devices);
+			keys.forEach(function(key){
+				var dev = self.devices[key];
 				app.log.debug('Updating weatherDriver Device: ' + dev.name);
 				var parsedResult = undefined;
 				(dev.config.data || []).forEach(function(fn) {
 					try {
-						parsedResult = fn(result, useFht);
+						parsedResult = fn(result, opts.useFahrenheit);
 					} catch(e) {
 						parsedResult = undefined;
 					}
@@ -102,7 +125,7 @@ Device.prototype.write = function(dataRcvd) {
 		var stgSubmit = undefined;
 		(this.config.setStg || []).forEach(function(fn) {
 			try {
-				stgSubmit = fn(apiKey, dataRcvd);
+				stgSubmit = fn(opts.apiKey, dataRcvd);
 			} catch(e) {
 				stgSubmit = undefined;
 			}
@@ -113,7 +136,7 @@ Device.prototype.write = function(dataRcvd) {
 			var rslt = exec(stgSubmit, function (error, stdout, stderr) {
 				stdout.replace(/(\n|\r|\r\n)$/, '');
 				app.log.debug(this.name + " - Result: " + stdout);
-				setTimeout( function() { updateDevices(app, opts) }, pauseAfterSetToUpdate);
+				setTimeout( function() { updateDevices(app, opts) }, opts.pauseAfterSetToUpdate);
 			});
 		}
 		else {
@@ -125,6 +148,25 @@ Device.prototype.write = function(dataRcvd) {
 	}
 };
 
+var validateNumber = function(cb, number, message) {
+	var data = number;
+	if (typeof data == 'string') {
+		try {
+			data = parseFloat(data);
+		} catch(e) {}
+	}
+	if (typeof data != 'number' || isNaN(data) || data <= 0) {
+		cb(null, {
+			"contents": [
+				{ "type": "paragraph", "text": message + " must be a number > 0. Please try again." },
+				{ "type": "close"    , "name": "Close" }
+			]
+		});
+		return null;
+	}
+	return data;
+}
+
 Driver.prototype.config = function(rpc,cb) {
 	var self = this;
 	if (!rpc) {
@@ -132,11 +174,12 @@ Driver.prototype.config = function(rpc,cb) {
 		return cb(null, {	// main config window
 			"contents":[
 				{ "type": "paragraph", "text": "The weatherDriver allows you to monitor the weather outside. To use this, you'll need a free api from http://www.wunderground.com/weather/api/ - Enter the settings below to get started, and please make sure you get a confirmation message after hitting 'Submit' below. (You may have to click it a couple of times. If you don't get a confirmation message, the settings did not update!)"},
-				{ "type": "input_field_text", "field_name": "api_text", "value": apiKey, "label": "API from wunderground.com", "placeholder": apiKey, "required": true},
-				{ "type": "input_field_text", "field_name": "zip_code_text", "value": zipCode, "label": 'Zip Code or Location (i.e. "90210" or "CA/San_Francisco" or "Australia/Sydney" or "autoip")', "placeholder": zipCode, "required": true},
-				{ "type": "input_field_select", "field_name": "use_fahrenheit_select", "label": "Temperature Type to Display", "options": [{ "name": "Fahrenheit", "value": true, "selected": useFahrenheit}, { "name": "Celsius", "value": false, "selected": !useFahrenheit}], "required": true },
-				{ "type": "input_field_text", "field_name": "pause_aft_updt_secs_text", "value": pauseAfterSetToUpdate/1000, "label": "Seconds to Pause After a Command Before Updating", "placeholder": pauseAfterSetToUpdate/1000, "required": true},
-				{ "type": "input_field_text", "field_name": "update_interval_text", "value": updateInterval/1000, "label": "How frequently to update data in seconds. (NOTE each update counts as an api call, so limit this per the number of calls per day your api plan allows)", "placeholder": updateInterval/1000, "required": true},
+				{ "type": "input_field_text", "field_name": "api_text", "value": self.opts.apiKey||"", "label": "API from wunderground.com", "placeholder": self.opts.apiKey||"", "required": true},
+				{ "type": "input_field_text", "field_name": "zip_code_text", "value": self.opts.zipCode, "label": 'Zip Code or Location (i.e. "90210" or "CA/San_Francisco" or "Australia/Sydney" or "autoip")', "placeholder": self.opts.zipCode, "required": true},
+				{ "type": "input_field_select", "field_name": "use_fahrenheit_select", "label": "Temperature Type to Display", "options": [{ "name": "Fahrenheit", "value": true, "selected": self.opts.useFahrenheit}, { "name": "Celsius", "value": false, "selected": !self.opts.useFahrenheit}], "required": true },
+				{ "type": "input_field_text", "field_name": "forecast_hours_text", "value": self.opts.forecastHours, "label": "Number of hours to forecast (creates new devices for each hour increment)", "placeholder": self.opts.forecastHours, "required": true},
+				{ "type": "input_field_text", "field_name": "pause_aft_updt_secs_text", "value": self.opts.pauseAfterSetToUpdate/1000, "label": "Seconds to Pause After a Command Before Updating", "placeholder": self.opts.pauseAfterSetToUpdate/1000, "required": true},
+				{ "type": "input_field_text", "field_name": "update_interval_text", "value": self.opts.updateInterval/1000, "label": "How frequently to update data in seconds. (NOTE each update counts as an api call, so limit this per the number of calls per day your api plan allows)", "placeholder": self.opts.updateInterval/1000, "required": true},
 				{ "type": "paragraph", "text": " "},
 				{ "type": "submit", "name": "Submit", "rpc_method": "submt" },
 				{ "type": "close", "name": "Cancel" },
@@ -158,45 +201,45 @@ Driver.prototype.config = function(rpc,cb) {
 		}
 		else if
 		*/
-		if (!(rpc.params.pause_aft_updt_secs_text >= 0)) {	// pause_aft_updt_secs_text must evaluate to a positive number or 0
+		if (rpc.params.api_text == "") {
 			cb(null, {
 				"contents": [
-					{ "type": "paragraph", "text": "The 'pause after update' interval must be a number and can't be negative. Please try again." },
-					{ "type": "close"    , "name": "Close" }
-				]
-			});			
-			return;				
-		}
-		else if (!(rpc.params.update_interval_text >= 0)) {	// update_interval_text must evaluate to a positive number or 0
-			cb(null, {
-				"contents": [
-					{ "type": "paragraph", "text": "The 'update interval' must be a number and can't be negative. Please try again." },
-					{ "type": "close"    , "name": "Close" }
-				]
-			});			
-			return;				
-		}		
-		else {	// looks like the submitted values were valid, so update
-			this._app.log.debug("weatherDriver data appears valid. Saving settings...");
-            self.opts.apiKey = rpc.params.api_text;
-            self.opts.zipCode = rpc.params.zip_code_text;
-			self.opts.useFahrenheit = rpc.params.use_fahrenheit_select;
-			self.opts.pauseAftUpdt = rpc.params.pause_aft_updt_secs_text * 1000; // also need this in milliseconds
-			self.opts.updateInterval = rpc.params.update_interval_text * 1000; // also need this in milliseconds			
-			apiKey = self.opts.apiKey; // ugly way to track these, but it should work for now...
-			zipCode = self.opts.zipCode;
-			useFahrenheit = self.opts.useFahrenheit;
-			pauseAftUpdt = self.opts.pauseAftUpdt;
-			updateInterval = self.opts.updateInterval;			
-			self.save();
-			cb(null, {
-				"contents": [
-					{ "type": "paragraph", "text": "Configuration was successful. weatherDriver values should update shortly!" },
+					{ "type": "paragraph", "text": "api key is mandatory." },
 					{ "type": "close"    , "name": "Close" }
 				]
 			});
-			updateDevices(this._app, self.opts);
-		};
+			return;
+		}
+		var pauseAftUpdt = validateNumber(cb, rpc.params.pause_aft_updt_secs_text, 'pause after update interval');
+		if (!pauseAftUpdt)
+			return;
+		var updateInterval = validateNumber(cb, rpc.params.update_interval_text, 'update interval');
+		if (!updateInterval)
+			return;
+		var forecastHours = validateNumber(cb, rpc.params.forecast_hours_text, 'forecast hours');
+		if (!forecastHours)
+			return;
+
+		// looks like the submitted values were valid, so update
+		this._app.log.debug("weatherDriver data appears valid. Saving settings...");
+		self.opts.apiKey = rpc.params.api_text;
+		self.opts.zipCode = rpc.params.zip_code_text;
+		if (typeof rpc.params.use_fahrenheit_select == 'string') {
+			self.opts.useFahrenheit = rpc.params.use_fahrenheit_select == "true";
+		} else {
+			self.opts.useFahrenheit = rpc.params.use_fahrenheit_select;
+		}
+		self.opts.forecastHours = forecastHours;
+		self.opts.pauseAftUpdt = pauseAftUpdt * 1000; // also need this in milliseconds
+		self.opts.updateInterval = updateInterval * 1000; // also need this in milliseconds
+		self.save();
+		cb(null, {
+			"contents": [
+				{ "type": "paragraph", "text": "Configuration was successful. weatherDriver values should update shortly!" },
+				{ "type": "close"    , "name": "Close" }
+			]
+		});
+		self.createDevices();
 	}
 	else {
 		this._app.log.warn("weatherDriver - Unknown rpc method was called!");
