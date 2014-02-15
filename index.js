@@ -17,7 +17,7 @@ function Driver(opts,app) {
     opts.useFahrenheit = false;
   opts.forecastHours = opts.forecastHours == null ? 1 : opts.forecastHours;
   opts.pauseAfterSetToUpdate = opts.pauseAfterSetToUpdate || 5000; // in milliseconds
-  opts.updateInterval = opts.updateInterval | 300000; // in milliseconds
+  opts.updateInterval = opts.updateInterval || 300000; // in milliseconds
   this.save();
   this.devices = {};
   this.timerId = null;
