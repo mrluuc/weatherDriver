@@ -2,6 +2,7 @@ var util = require('util');
 var stream = require('stream');
 var commands = require('./commands');
 var rest = require('restler');
+var _ = require('underscore');
 
 util.inherits(Driver,stream);
 util.inherits(Device,stream);
@@ -75,7 +76,7 @@ Driver.prototype.updateDevices = function() { // runs every "updateInterval" sec
   var app = this._app;
   var opts = this.opts;
 
-  app.log.debug("Updating weatherDriver Devices...");
+  app.log.info("Updating weatherDriver Devices: %j", _.map(self.devices, function(device,key) { return key; }));
 
   // a single api request can combine many forms of data so as to save you # of requests per day, etc.
   // can be: alerts, almanac, astronomy, conditions, currenthurricane, forecast, forecast10day, geolookup, history, hourly, hourly10day, planner, rawtide, satellite, tide, webcams, yesterday
