@@ -13,3 +13,10 @@ Creates new devices for each hour temperature and conditions:
   * Weather Forecast Temperature 2h
   * Weather Forecast Condition 2h: (Clear, Rain, Chance of Rain,...)
   * ...
+
+# Installation
+
+Clone this repo and run `npm install`
+
+    git clone https://github.com/carlossg/weatherDriver.git /opt/ninja/drivers/ninja-weather
+    cd /opt/ninja/drivers/ninja-weather && npm install
