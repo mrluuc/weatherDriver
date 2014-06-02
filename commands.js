@@ -20,7 +20,7 @@ var hourlyForecast = function(opts)
         name: 'Weather Forecast Condition '+(i+1)+'h',
         deviceId: 244,
         data: [function(weatherDataToParse, useFahrenheit) {
-          return weatherDataToParse.hourly_forecast[i].condition;
+          return weatherDataToParse.hourly_forecast[i].fctcode;
         }],
         canSet: false
       });
