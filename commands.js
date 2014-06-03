@@ -41,6 +41,30 @@ var hourlyForecast = function(opts)
         canSet: false
       });
       forecasts.push({
+        name: 'Weather Forecast Pop '+(i+1)+'h',
+        deviceId: 9,
+        data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.hourly_forecast[i].pop;
+        }],
+        canSet: false
+      });
+      forecasts.push({
+        name: 'Weather Forecast FctCode '+(i+1)+'h',
+        deviceId: 9,
+        data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.hourly_forecast[i].fctcode;
+        }],
+        canSet: false
+      });
+      forecasts.push({
+        name: 'Weather Forecast Uvi '+(i+1)+'h',
+        deviceId: 9,
+        data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.hourly_forecast[i].Uvi;
+        }],
+        canSet: false
+      });
+      forecasts.push({
         name: 'Weather Forecast Condition '+(i+1)+'h',
         deviceId: 244,
         data: [function(weatherDataToParse, useFahrenheit) {
