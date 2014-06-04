@@ -67,7 +67,7 @@ function Device(app, config) {
   this.V = config.vendorId || 0;
   this.D = config.deviceId;
   this.G = 'wd' + (config.name).replace(/[^a-zA-Z0-9]/g, '');
-  this.name = 'weatherDriver - ' + config.name;
+  this.name = config.name;
   // this.read();
 };
 
