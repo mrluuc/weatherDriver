@@ -6,7 +6,7 @@ var hourlyForecast = function(opts)
       name: 'Weather Current Humidity',
       deviceId: 9,
       data: [function(weatherDataToParse, useFahrenheit) {
-          return weatherDataToParse.current_observation.relative_humidity;
+          return (weatherDataToParse.current_observation.relative_humidity).replace(/[^0-9]/g, '');
       }],
       canSet: false
 	});
