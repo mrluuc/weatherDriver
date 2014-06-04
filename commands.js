@@ -41,6 +41,14 @@ var hourlyForecast = function(opts)
         canSet: false
       });
       forecasts.push({
+        name: 'Weather Forecast Humidity '+(i+1)+'h',
+        deviceId: 9,
+        data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.hourly_forecast[i].humidity;
+        }],
+        canSet: false
+      });
+      forecasts.push({
         name: 'Weather Forecast Condition '+(i+1)+'h',
         deviceId: 244,
         data: [function(weatherDataToParse, useFahrenheit) {
