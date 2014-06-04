@@ -1,6 +1,40 @@
 var hourlyForecast = function(opts)
 {
   var forecasts = [];
+  
+  	forecasts.push({
+      name: 'Weather Current Humidity',
+      deviceId: 9,
+      data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.current_observation.relative_humidity;
+      }],
+      canSet: false
+	});
+	forecasts.push({
+      name: 'Weather Current Solarradiation',
+      deviceId: 9,
+      data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.current_observation.solarradiation;
+      }],
+      canSet: false
+	});
+	forecasts.push({
+      name: 'Weather Current UV',
+      deviceId: 9,
+      data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.current_observation.UV;
+      }],
+      canSet: false
+	});
+	forecasts.push({
+      name: 'Weather Today Rain',
+      deviceId: 9,
+      data: [function(weatherDataToParse, useFahrenheit) {
+          return weatherDataToParse.current_observation.precip_today_metric;
+      }],
+      canSet: false
+	});
+	
   for (var i = 0; i < opts.forecastHours; i++) {
     (function(i) {
       forecasts.push({
@@ -76,38 +110,6 @@ module.exports = function(opts) {
       }],
       canSet: false
     }
-	{
-      name: 'Weather Current Humidity',
-      deviceId: 9,
-      data: [function(weatherDataToParse, useFahrenheit) {
-          return weatherDataToParse.current_observation.relative_humidity;
-      }],
-      canSet: false
-	}
-	{
-      name: 'Weather Current Solarradiation',
-      deviceId: 9,
-      data: [function(weatherDataToParse, useFahrenheit) {
-          return weatherDataToParse.current_observation.solarradiation;
-      }],
-      canSet: false
-	}
-	{
-      name: 'Weather Current UV',
-      deviceId: 9,
-      data: [function(weatherDataToParse, useFahrenheit) {
-          return weatherDataToParse.current_observation.UV;
-      }],
-      canSet: false
-	}
-	{
-      name: 'Weather Today Rain',
-      deviceId: 9,
-      data: [function(weatherDataToParse, useFahrenheit) {
-          return weatherDataToParse.current_observation.precip_today_metric;
-      }],
-      canSet: false
-	}
   ].concat(hourlyForecast(opts));
 }
 
